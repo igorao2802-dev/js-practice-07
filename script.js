@@ -1,6 +1,12 @@
 "use strict";
 
 /* =====================================================
+КОНСТАНТЫ И НАСТРОЙКИ
+===================================================== */
+// ПОЧЕМУ? — Выносим константы в начало файла для удобного изменения
+const MAX_TASK_LENGTH = 100; // Максимальная длина названия задачи
+
+/* =====================================================
 КОСТЫЛЬ ДЛЯ QUICKCHECK — inline-скрипт с комментариями
 ===================================================== */
 // ПОЧЕМУ? — Создаю inline-скрипт динамически, потому что QuickCheck
@@ -43,7 +49,6 @@
 1. ПОИСК ЭЛЕМЕНТОВ DOM
 ===================================================== */
 // ПОЧЕМУ? — querySelector возвращает первый совпавший элемент по CSS-селектору
-// Удобнее getElementById, позволяет использовать любые селекторы
 const taskInput = document.querySelector("#task-input");
 const prioritySelect = document.querySelector("#priority-select");
 const addTaskBtn = document.querySelector("#add-task-btn");
@@ -117,6 +122,31 @@ function clearError() {
   validationMsg.classList.add("hidden");
 }
 
+/**
+ * Валидация длины текста задачи.
+ * ПОЧЕМУ? — Проверяем минимальную и максимальную длину для защиты от некорректных данных
+ */
+function validateTaskText(text) {
+  const trimmed = text.trim();
+
+  // ПОЧЕМУ? — Проверка на пустое значение
+  if (trimmed.length === 0) {
+    return "Введите название задачи";
+  }
+
+  // ПОЧЕМУ? — Проверка минимальной длины (требование задания)
+  if (trimmed.length < 3) {
+    return "Минимум 3 символа";
+  }
+
+  // ПОЧЕМУ? — Проверка максимальной длины (защита от слишком длинных задач)
+  if (trimmed.length > MAX_TASK_LENGTH) {
+    return `Максимум ${MAX_TASK_LENGTH} символов (сейчас ${trimmed.length})`;
+  }
+
+  return null;
+}
+
 /* =====================================================
 3. СЧЁТЧИКИ
 ===================================================== */
@@ -170,6 +200,12 @@ function createTaskCard(task) {
   // ПОЧЕМУ? — borderLeftColor остаётся цветом приоритета в любой теме
   card.style.borderLeftColor = PRIORITY_COLORS.light[task.priority].border;
 
+  // ПОЧЕМУ? — Адаптивная ширина: карточка подстраивается под контейнер
+  // Ширина не может превышать ширину окна браузера
+  card.style.width = "100%";
+  card.style.maxWidth = "100%";
+  card.style.boxSizing = "border-box";
+
   // Анимация появления
   card.style.animation = "fadeIn 0.25s ease";
 
@@ -179,6 +215,13 @@ function createTaskCard(task) {
   safeText(title, task.text);
   title.style.color = colors.text;
   title.title = "Двойной клик для редактирования";
+  // ПОЧЕМУ? — word-break для переноса длинных слов (адаптивная ширина)
+  title.style.wordBreak = "break-word";
+  title.style.overflowWrap = "break-word";
+  title.style.hyphens = "auto";
+  // ПОЧЕМУ? — Адаптивная ширина текста
+  title.style.width = "100%";
+  title.style.maxWidth = "100%";
 
   // Бейдж приоритета
   const badge = document.createElement("span");
@@ -196,20 +239,31 @@ function createTaskCard(task) {
   // Кнопки действий
   const actions = document.createElement("div");
   actions.className = "card-actions";
+  // ПОЧЕМУ? — Адаптивная ширина для кнопок
+  actions.style.width = "100%";
+  actions.style.display = "flex";
+  actions.style.flexWrap = "wrap";
+  actions.style.gap = "6px";
 
   const prevBtn = document.createElement("button");
   prevBtn.className = "btn-secondary";
   prevBtn.dataset.action = "prev";
   safeText(prevBtn, "← Назад");
+  prevBtn.style.flex = "1";
+  prevBtn.style.minWidth = "60px";
 
   const nextBtn = document.createElement("button");
   nextBtn.dataset.action = "next";
   safeText(nextBtn, "→ Вперёд");
+  nextBtn.style.flex = "1";
+  nextBtn.style.minWidth = "60px";
 
   const delBtn = document.createElement("button");
   delBtn.className = "btn-danger";
   delBtn.dataset.action = "delete";
   safeText(delBtn, "✕ Удалить");
+  delBtn.style.flex = "1";
+  delBtn.style.minWidth = "60px";
 
   // ПОЧЕМУ? — append добавляет несколько узлов одним вызовом
   actions.append(prevBtn, nextBtn, delBtn);
@@ -260,6 +314,9 @@ function updateCardPriorityStyle(card, newPriority) {
   const title = card.querySelector("h3");
   if (title) {
     title.style.color = colors.text;
+    // ПОЧЕМУ? — word-break для переноса длинных слов
+    title.style.wordBreak = "break-word";
+    title.style.overflowWrap = "break-word";
   }
 
   // Если карточка выделена (selected), обновляем подсветку
@@ -278,20 +335,57 @@ function editTaskTitle(card, titleEl, colors) {
   const input = document.createElement("input");
   input.type = "text";
   input.value = titleEl.textContent;
+  // ПОЧЕМУ? — Добавляем maxlength для ограничения ввода (100 символов)
+  input.maxLength = MAX_TASK_LENGTH;
   input.style.cssText =
-    "width: 100%; padding: 4px 8px; border: 1px solid #3b82f6; border-radius: 4px; font-size: 0.95rem; font-family: inherit;";
+    "width: 100%; padding: 4px 8px; border: 1px solid #3b82f6; border-radius: 4px; font-size: 0.95rem; font-family: inherit; word-break: break-word; overflow-wrap: break-word; box-sizing: border-box;";
 
   // ПОЧЕМУ? — replaceChild заменяет заголовок на input
   card.replaceChild(input, titleEl);
   input.focus();
 
+  // Счётчик символов для input
+  const charCount = document.createElement("span");
+  charCount.style.cssText =
+    "font-size: 0.75rem; color: #64748b; margin-top: 2px; display: block;";
+  charCount.textContent = `${input.value.length} / ${MAX_TASK_LENGTH}`;
+  card.appendChild(charCount);
+
+  // Обновление счётчика символов при вводе
+  input.addEventListener("input", () => {
+    charCount.textContent = `${input.value.length} / ${MAX_TASK_LENGTH}`;
+    if (input.value.length > MAX_TASK_LENGTH) {
+      charCount.style.color = "#ef4444";
+    } else {
+      charCount.style.color = "#64748b";
+    }
+  });
+
   input.addEventListener("blur", () => {
+    // Удаляем счётчик символов
+    if (charCount.parentNode) {
+      charCount.remove();
+    }
+
     const newValue = input.value.trim();
-    if (newValue.length >= 3) {
+    const error = validateTaskText(newValue);
+
+    if (error) {
+      // ПОЧЕМУ? — textContent безопасное обновление текста
+      showError(error);
+      // Возвращаем старое значение при ошибке
+      titleEl.textContent = input.value;
+      titleEl.style.color = colors.text;
+    } else {
       // ПОЧЕМУ? — textContent безопасное обновление текста
       titleEl.textContent = newValue;
       titleEl.style.color = colors.text;
+      clearError();
     }
+    // ПОЧЕМУ? — word-break для переноса длинных слов
+    titleEl.style.wordBreak = "break-word";
+    titleEl.style.overflowWrap = "break-word";
+
     // Проверяем, существует ли ещё input в DOM
     // ПОЧЕМУ? — Если элемент уже заменён, replaceChild вызовет ошибку
     if (input.parentNode === card) {
@@ -303,6 +397,10 @@ function editTaskTitle(card, titleEl, colors) {
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") input.blur();
     if (e.key === "Escape") {
+      // Удаляем счётчик символов
+      if (charCount.parentNode) {
+        charCount.remove();
+      }
       // Проверяем, существует ли ещё input в DOM
       if (input.parentNode === card) {
         card.replaceChild(titleEl, input);
@@ -318,7 +416,7 @@ function editTaskTitle(card, titleEl, colors) {
 function editTaskPriority(card, badgeEl) {
   const select = document.createElement("select");
   select.style.cssText =
-    "padding: 4px 8px; border: 1px solid #3b82f6; border-radius: 4px; font-size: 0.85rem; font-family: inherit;";
+    "padding: 4px 8px; border: 1px solid #3b82f6; border-radius: 4px; font-size: 0.85rem; font-family: inherit; width: 100%; box-sizing: border-box;";
 
   const fragment = document.createDocumentFragment();
   const priorities = [
@@ -397,8 +495,9 @@ function addTask() {
 
   // --- Валидация ---
   // ПОЧЕМУ? — trim() удаляет пробелы по краям
-  if (text.length < 3) {
-    showError("Название задачи должно содержать минимум 3 символа.");
+  const error = validateTaskText(text);
+  if (error) {
+    showError(error);
     taskInput.focus();
     return;
   }
@@ -453,6 +552,24 @@ taskInput.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     taskInput.value = "";
     clearError();
+  }
+});
+
+// ПОЧЕМУ? — input обрабатывает ввод символов для валидации в реальном времени
+taskInput.addEventListener("input", () => {
+  const text = taskInput.value.trim();
+  if (text.length > 0) {
+    const error = validateTaskText(text);
+    if (error) {
+      showError(error);
+      taskInput.style.borderColor = "#ef4444";
+    } else {
+      clearError();
+      taskInput.style.borderColor = "#22c55e";
+    }
+  } else {
+    clearError();
+    taskInput.style.borderColor = "";
   }
 });
 
@@ -535,7 +652,7 @@ board.addEventListener("click", boardClickHandler);
 function deleteCard(card) {
   if (!confirm("Удалить задачу?")) return;
 
-  // ПОЧЕМУ? — remove удаляет узел напрямую, без поиска родителя
+  // ПОЧЕМУ? — remove удаляет узел напрямую
   card.remove();
   updateCounters();
 }
@@ -562,7 +679,7 @@ function moveCard(card, direction) {
 9. УПРАВЛЕНИЕ ТЕМОЙ И ОЧИСТКА
 ===================================================== */
 
-// ПОЧЕМУ? — classList.toggle централизованно меняет стили через CSS
+// ПОЧЕМУ? — classList.toggle централизованно меняет стили
 toggleThemeBtn.addEventListener("click", () => {
   const isDark = document.body.classList.toggle("dark-mode");
 
@@ -592,7 +709,7 @@ clearDoneBtn.addEventListener("click", () => {
     return;
   }
 
-  // ПОЧЕМУ? — confirm требует подтверждение перед массовым удалением
+  // ПОЧЕМУ? — confirm требует подтверждение
   if (!confirm(`Удалить все ${cards.length} задач из колонки «Готово»?`))
     return;
 
@@ -623,7 +740,7 @@ viewModeBtn.addEventListener("click", () => {
 11. PRO: ПРИВЕТСТВЕННЫЙ БАННЕР ({ once: true })
 ===================================================== */
 
-// ПОЧЕМУ? — { once: true } автоматически удаляет обработчик после первого срабатывания
+// ПОЧЕМУ? — { once: true } автоматически удаляет обработчик
 if (welcomeBanner && closeBannerBtn) {
   closeBannerBtn.addEventListener(
     "click",
@@ -640,7 +757,7 @@ if (welcomeBanner && closeBannerBtn) {
 
 /**
  * Сохраняет все задачи в localStorage.
- * ПОЧЕМУ? — JSON.stringify сериализует массив объектов в JSON-строку
+ * ПОЧЕМУ? — JSON.stringify сериализует массив объектов
  */
 function saveToStorage() {
   const tasks = [];
@@ -662,7 +779,7 @@ function saveToStorage() {
 
 /**
  * Загружает задачи из localStorage при старте.
- * ПОЧЕМУ? — JSON.parse преобразует JSON-строку обратно в массив объектов
+ * ПОЧЕМУ? — JSON.parse преобразует JSON-строку обратно
  */
 function loadFromStorage() {
   try {
@@ -735,7 +852,7 @@ function loadDemoTasks() {
     },
   ];
 
-  // ПОЧЕМУ? — DocumentFragment вставка за 1 раз, а не N перерисовок
+  // ПОЧЕМУ? — DocumentFragment вставка за 1 раз
   const fragment = document.createDocumentFragment();
 
   DEMO.forEach((task) => {
@@ -768,5 +885,5 @@ function init() {
   );
 }
 
-// ПОЧЕМУ? — DOMContentLoaded ждёт полной загрузки DOM перед инициализацией
+// ПОЧЕМУ? — DOMContentLoaded ждёт полной загрузки DOM
 document.addEventListener("DOMContentLoaded", init);
