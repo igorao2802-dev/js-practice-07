@@ -1,7 +1,12 @@
 "use strict";
 
 /* =====================================================
-1. ПОИСК ЭЛЕМЕНТОВ
+ПРАКТИЧЕСКАЯ РАБОТА №7 — События в JS
+Kanban-доска с делегированием событий
+===================================================== */
+
+/* =====================================================
+1. ПОИСК ЭЛЕМЕНТОВ DOM
 ===================================================== */
 // ПОЧЕМУ querySelector? — Возвращает первый совпавший элемент по CSS-селектору.
 // Удобнее getElementById, позволяет использовать любые селекторы (.class, [data-attr]).
@@ -122,20 +127,20 @@ function createTaskCard(task) {
     card.classList.add("priority-high");
   }
 
-  // Анимация появления (fadeIn уже в CSS)
+  // ⚠️ ВНИМАНИЕ: Этот блок кода частично нарушает принцип разделения "структура-стили-функционал"
+  // ПОЧЕМУ inline-стили? — По заданию нельзя вносить изменения в файлы index.html и style.css
+  // Поэтому применяем анимацию появления через JS (fadeIn уже есть в style.css)
   card.style.animation = "fadeIn 0.25s ease";
 
   // Заголовок задачи
   // ПОЧЕМУ textContent? — Вставляю текст безопасно, экранируя теги — защита от XSS
   const title = document.createElement("h3");
   safeText(title, task.text);
-  title.title = "Двойной клик для редактирования";
 
   // Бейдж приоритета
   const badge = document.createElement("span");
   badge.className = `priority-badge ${task.priority}`;
   safeText(badge, PRIORITY_LABELS[task.priority] || task.priority);
-  badge.title = "Двойной клик для смены приоритета";
 
   // Кнопки действий
   const actions = document.createElement("div");
@@ -160,141 +165,7 @@ function createTaskCard(task) {
   actions.append(prevBtn, nextBtn, delBtn);
   card.append(title, badge, actions);
 
-  // РЕДАКТИРОВАНИЕ ПО ДВОЙНОМУ КЛИКУ (только не в режиме просмотра)
-  // ПОЧЕМУ dblclick? — Позволяет редактировать контент по двойному клику
-  // Это стандартный UX паттерн для inline-редактирования
-  title.addEventListener("dblclick", (e) => {
-    // ПОЧЕМУ stopPropagation? — Предотвращаю всплытие события до обработчика доски
-    e.stopPropagation();
-
-    // ПОЧЕМУ проверка isViewMode? — В режиме просмотра редактирование заблокировано
-    if (isViewMode) {
-      return;
-    }
-
-    editTaskTitle(card, title);
-  });
-
-  // Редактирование приоритета по двойному клику на бейдж
-  badge.addEventListener("dblclick", (e) => {
-    // ПОЧЕМУ stopPropagation? — Предотвращаю всплытие события до обработчика доски
-    e.stopPropagation();
-
-    // ПОЧЕМУ проверка isViewMode? — В режиме просмотра редактирование заблокировано
-    if (isViewMode) {
-      return;
-    }
-
-    editTaskPriority(card, badge);
-  });
-
   return card;
-}
-
-/**
- * Редактирование названия задачи по двойному клику.
- * ПОЧЕМУ replaceChild? — Заменяю существующий узел на input для редактирования.
- * Это позволяет редактировать текст «на лету» без перезагрузки страницы.
- */
-function editTaskTitle(card, titleEl) {
-  const input = document.createElement("input");
-  input.type = "text";
-  input.value = titleEl.textContent;
-  input.className = "edit-input";
-  input.style.cssText =
-    "width: 100%; padding: 4px 8px; border: 1px solid #3b82f6; border-radius: 4px; font-size: 0.95rem; font-family: inherit;";
-
-  // ПОЧЕМУ replaceChild? — Заменяю заголовок на input для редактирования
-  card.replaceChild(input, titleEl);
-  input.focus();
-
-  // Сохранение по потере фокуса
-  input.addEventListener("blur", () => {
-    const newValue = input.value.trim();
-    if (newValue.length >= 3) {
-      // ПОЧЕМУ textContent? — Безопасное обновление текста (защита от XSS)
-      titleEl.textContent = newValue;
-    }
-    card.replaceChild(titleEl, input);
-    updateCounters(); // Сохраняем изменения в localStorage
-  });
-
-  // Сохранение по Enter
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      input.blur();
-    }
-    if (e.key === "Escape") {
-      card.replaceChild(titleEl, input);
-    }
-  });
-}
-
-/**
- * Редактирование приоритета задачи по двойному клику.
- * ПОЧЕМУ select? — Позволяет выбрать один из трёх вариантов приоритета.
- * Это удобнее, чем вводить текст вручную.
- */
-function editTaskPriority(card, badgeEl) {
-  const select = document.createElement("select");
-  select.className = "priority-select";
-  select.style.cssText =
-    "padding: 4px 8px; border: 1px solid #3b82f6; border-radius: 4px; font-size: 0.85rem; font-family: inherit;";
-
-  // ПОЧЕМУ createDocumentFragment? — Создаю опции эффективно, без лишних перерисовок
-  const fragment = document.createDocumentFragment();
-
-  const priorities = [
-    { value: "high", label: "🔴 Высокий" },
-    { value: "medium", label: "🟡 Средний" },
-    { value: "low", label: "🟢 Низкий" },
-  ];
-
-  priorities.forEach((p) => {
-    const option = document.createElement("option");
-    option.value = p.value;
-    option.textContent = p.label;
-    if (card.dataset.priority === p.value) {
-      option.selected = true;
-    }
-    fragment.appendChild(option);
-  });
-
-  select.appendChild(fragment);
-  card.replaceChild(select, badgeEl);
-  select.focus();
-
-  // Сохранение при изменении
-  select.addEventListener("change", () => {
-    const newPriority = select.value;
-    card.dataset.priority = newPriority;
-
-    // Обновляем бейдж
-    const newBadge = document.createElement("span");
-    newBadge.className = `priority-badge ${newPriority}`;
-    safeText(newBadge, PRIORITY_LABELS[newPriority]);
-    newBadge.title = "Двойной клик для смены приоритета";
-
-    // ПОЧЕМУ replaceChild? — Заменяю select обратно на бейдж
-    card.replaceChild(newBadge, select);
-
-    // Пересоздаём обработчик dblclick для нового бейджа
-    newBadge.addEventListener("dblclick", (e) => {
-      e.stopPropagation();
-      if (!isViewMode) {
-        editTaskPriority(card, newBadge);
-      }
-    });
-
-    updateCounters(); // Сохраняем изменения в localStorage
-  });
-
-  // Сохранение по потере фокуса
-  select.addEventListener("blur", () => {
-    if (select.parentNode) {
-      select.dispatchEvent(new Event("change"));
-    }
-  });
 }
 
 /* =====================================================
@@ -433,10 +304,12 @@ function boardClickHandler(e) {
   // Клик на саму карточку (не на кнопку) — выделение
   // ПОЧЕМУ classList.toggle? — Если класс есть — удаляет; если нет — добавляет.
   // Повторный клик снимает выделение — удобный UX.
+  // ⚠️ ВНИМАНИЕ: Этот блок кода частично нарушает принцип разделения "структура-стили-функционал"
+  // ПОЧЕМУ inline-стили для подсветки? — По заданию нельзя вносить изменения в style.css
+  // Поэтому применяем цвета выделения динамически через JS в зависимости от приоритета
   card.classList.toggle("selected");
 
-  // ИСПРАВЛЕНИЕ: Подсветка по приоритету через inline-стили
-  // ПОЧЕМУ inline-стили? — CSS файл трогать нельзя, поэтому применяем цвета динамически
+  // Подсветка по приоритету через inline-стили
   if (card.classList.contains("selected")) {
     const priority = card.dataset.priority;
 
