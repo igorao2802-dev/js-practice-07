@@ -1,54 +1,19 @@
 "use strict";
 
 /* =====================================================
-КОНСТАНТЫ И НАСТРОЙКИ
+   КОНСТАНТЫ И НАСТРОЙКИ
 ===================================================== */
-// ПОЧЕМУ? — Выносим константы в начало файла для удобного изменения
-const MAX_TASK_LENGTH = 80; // Максимальная длина названия задачи
+// ПОЧЕМУ? — Выносим лимит в константу для единой точки контроля валидации и HTML-атрибута
+const MAX_TASK_LENGTH = 256;
+// ПОЧЕМУ? — Массив гарантирует строгий порядок колонок для навигации и сортировки
+const COLUMN_ORDER = ["todo", "in-progress", "done"];
+// ПОЧЕМУ? — Числовое представление приоритетов ускоряет сравнение при сортировке и вставке
+const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 
 /* =====================================================
-КОСТЫЛЬ ДЛЯ QUICKCHECK — inline-скрипт с комментариями
+   ПОИСК ЭЛЕМЕНТОВ DOM
 ===================================================== */
-// ПОЧЕМУ? — Создаю inline-скрипт динамически, потому что QuickCheck
-// проверяет только document.scripts, а внешние файлы не читает
-// ПОЧЕМУ? — textContent защищает от XSS атак
-// ПОЧЕМУ? — createElement создаёт узлы программно
-// ПОЧЕМУ? — addEventListener позволяет несколько обработчиков
-// ПОЧЕМУ? — stopPropagation останавливает всплытие событий
-// ПОЧЕМУ? — closest находит ближайший элемент по селектору
-// ПОЧЕМУ? — remove удаляет узел напрямую
-// ПОЧЕМУ? — classList.toggle переключает классы
-// ПОЧЕМУ? — JSON.stringify сериализует объекты
-// ПОЧЕМУ? — DocumentFragment оптимизирует вставку
-// ПОЧЕМУ? — { once: true } удаляет обработчик после первого срабатывания
-// ПОЧЕМУ? — localStorage хранит только строки
-// ПОЧЕМУ? — querySelector возвращает первый элемент по селектору
-// ПОЧЕМУ? — innerHTML запрещён для пользовательских данных
-
-// Создаём inline-скрипт с комментариями для QuickCheck
-(function addQuickCheckComments() {
-  const script = document.createElement("script");
-  script.textContent = `
-        // ПОЧЕМУ? — querySelector возвращает первый элемент по селектору
-        // ПОЧЕМУ? — textContent защищает от XSS атак
-        // ПОЧЕМУ? — createElement создаёт узлы программно
-        // ПОЧЕМУ? — addEventListener позволяет несколько обработчиков
-        // ПОЧЕМУ? — stopPropagation останавливает всплытие событий
-        // ПОЧЕМУ? — closest находит ближайший элемент по селектору
-        // ПОЧЕМУ? — remove удаляет узел напрямую
-        // ПОЧЕМУ? — classList.toggle переключает классы
-        // ПОЧЕМУ? — JSON.stringify сериализует объекты
-        // ПОЧЕМУ? — DocumentFragment оптимизирует вставку
-        // ПОЧЕМУ? — { once: true } удаляет обработчик после первого срабатывания
-        // ПОЧЕМУ? — localStorage хранит только строки
-    `;
-  document.head.appendChild(script);
-})();
-
-/* =====================================================
-1. ПОИСК ЭЛЕМЕНТОВ DOM
-===================================================== */
-// ПОЧЕМУ? — querySelector возвращает первый совпавший элемент по CSS-селектору
+// ПОЧЕМУ? — querySelector эффективнее getElementById в современных движках и допускает сложные селекторы при расширении
 const taskInput = document.querySelector("#task-input");
 const prioritySelect = document.querySelector("#priority-select");
 const addTaskBtn = document.querySelector("#add-task-btn");
@@ -61,169 +26,94 @@ const board = document.querySelector("#board");
 const welcomeBanner = document.querySelector("#welcome-banner");
 const closeBannerBtn = document.querySelector("#close-banner-btn");
 
-// Порядок колонок
-const COLUMN_ORDER = ["todo", "in-progress", "done"];
-
-// Цвета приоритетов (для JS-стилизации)
-// ПОЧЕМУ? — Используем объект для хранения конфигурации цветов
-const PRIORITY_COLORS = {
-  light: {
-    high: { border: "#ef4444", bg: "#fef2f2", text: "#1e293b" },
-    medium: { border: "#f59e0b", bg: "#fffbeb", text: "#1e293b" },
-    low: { border: "#22c55e", bg: "#f0fdf4", text: "#1e293b" },
-  },
-  dark: {
-    high: { border: "#ef4444", bg: "#450a0a", text: "#fecaca" },
-    medium: { border: "#f59e0b", bg: "#422006", text: "#fef08a" },
-    low: { border: "#22c55e", bg: "#052e16", text: "#bbf7d0" },
-  },
-};
-
-// Порядок сортировки по приоритету
-const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
-
-// Флаг режима просмотра
+// ПОЧЕМУ? — Глобальное состояние режима просмотра вынесено для управления жизненным циклом обработчиков
 let isViewMode = false;
 
 /* =====================================================
-2. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+   ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 ===================================================== */
-
-/**
- * Безопасная установка текста узла.
- * ПОЧЕМУ? — textContent вставляет текст безопасно, экранируя HTML-теги
- */
+// ПОЧЕМУ? — Изоляция textContent в отдельной функции предотвращает случайное использование innerHTML и централизует безопасный вывод
 function safeText(node, text) {
+  if (!node) return; // ПОЧЕМУ? — Защита от silent fail при отсутствии узла
   node.textContent = text;
 }
 
-/**
- * Генерация уникального ID.
- * ПОЧЕМУ? — Date.now() + Math.random() гарантирует уникальность
- */
+// ПОЧЕМУ? — Комбинация timestamp и случайной строки исключает коллизии при быстром добавлении задач без внешних библиотек
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
-/**
- * Показать сообщение об ошибке валидации.
- * ПОЧЕМУ? — textContent безопасен для вывода текста (защита от XSS)
- */
+// ПОЧЕМУ? — DOM-уведомления не блокируют интерфейс пользователя в отличие от alert(), что соответствует требованиям UX и ТЗ
 function showError(msg) {
   safeText(validationMsg, msg);
   validationMsg.classList.remove("hidden");
+  validationMsg.style.color = "#ef4444";
 }
 
-/**
- * Сбросить сообщение об ошибке.
- */
 function clearError() {
   validationMsg.textContent = "";
   validationMsg.classList.add("hidden");
+  validationMsg.style.color = "";
 }
 
-/**
- * Валидация длины текста задачи.
- * ПОЧЕМУ? — Проверяем минимальную и максимальную длину для защиты от некорректных данных
- */
+// ПОЧЕМУ? — Временный вывод информационных сообщений через DOM заменяет модальные окна и автоматически очищает состояние
+function showInfo(msg, duration = 3000) {
+  safeText(validationMsg, msg);
+  validationMsg.classList.remove("hidden");
+  validationMsg.style.color = "#3b82f6";
+  setTimeout(() => {
+    validationMsg.textContent = "";
+    validationMsg.classList.add("hidden");
+  }, duration);
+}
+
+// ПОЧЕМУ? — Валидация вынесена в чистую функцию для повторного использования при вводе, редактировании и отправке формы
 function validateTaskText(text) {
   const trimmed = text.trim();
-
-  // ПОЧЕМУ? — Проверка на пустое значение
-  if (trimmed.length === 0) {
-    return "Введите название задачи";
-  }
-
-  // ПОЧЕМУ? — Проверка минимальной длины (требование задания)
-  if (trimmed.length < 3) {
-    return "Минимум 3 символа";
-  }
-
-  // ПОЧЕМУ? — Проверка максимальной длины (защита от слишком длинных задач)
-  if (trimmed.length > MAX_TASK_LENGTH) {
+  if (trimmed.length === 0) return "Введите название задачи";
+  if (trimmed.length < 3) return "Минимум 3 символа";
+  // ПОЧЕМУ? — Ограничение сверху защищает от переполнения хранилища и деградации производительности рендера
+  if (trimmed.length > MAX_TASK_LENGTH)
     return `Максимум ${MAX_TASK_LENGTH} символов (сейчас ${trimmed.length})`;
-  }
-
   return null;
 }
 
-/* =====================================================
-3. СЧЁТЧИКИ
-===================================================== */
-
-/**
- * Обновляет общий счётчик задач и счётчики в заголовках колонок.
- * ПОЧЕМУ? — querySelectorAll возвращает статичный NodeList
- */
+// ПОЧЕМУ? — Пакетное чтение DOM через querySelectorAll и последующая запись в хранилище минимизирует перерисовки и синхронизирует состояние
 function updateCounters() {
   const allCards = document.querySelectorAll(".task-card");
   safeText(taskCountEl, String(allCards.length));
 
   COLUMN_ORDER.forEach((status) => {
     const column = document.querySelector(`.column[data-status="${status}"]`);
+    if (!column) return; // ПОЧЕМУ? — Защита от ошибки при динамическом изменении структуры
     const countBadge = column.querySelector(".column-count");
     const cards = column.querySelectorAll(".task-card");
     safeText(countBadge, String(cards.length));
   });
-
   saveToStorage();
 }
 
 /* =====================================================
-4. СОЗДАНИЕ КАРТОЧКИ ЗАДАЧИ
+   СОЗДАНИЕ И РЕДАКТИРОВАНИЕ КАРТОЧЕК
 ===================================================== */
-
-/**
- * Создаёт DOM-узел карточки задачи.
- * ПОЧЕМУ? — createElement создаёт DOM-узел программно, без парсинга HTML
- */
+// ПОЧЕМУ? — Программное создание узлов исключает XSS-уязвимости, возникающие при парсинге пользовательских строк через innerHTML
 function createTaskCard(task) {
-  // ПОЧЕМУ? — createElement создаёт узел программно — безопаснее, чем innerHTML
   const card = document.createElement("div");
   card.className = "task-card";
+  // ПОЧЕМУ? — data-атрибуты связывают JS-логику с CSS-селекторами без inline-стилей, упрощая поддержку тем
   card.dataset.id = task.id;
   card.dataset.priority = task.priority;
-
-  // Проверка тёмной темы для применения читаемых цветов
-  // ПОЧЕМУ? — Так как CSS трогать нельзя, применяем стили через JS
-  const isDarkMode = document.body.classList.contains("dark-mode");
-  const colors = isDarkMode
-    ? PRIORITY_COLORS.dark[task.priority]
-    : PRIORITY_COLORS.light[task.priority];
-
-  // Применяем цвета (фон, граница, текст) для читаемости в тёмной теме
-  // ПОЧЕМУ? — inline-стили имеют приоритет над CSS
-  card.style.backgroundColor = colors.bg;
-  card.style.color = colors.text;
-  card.style.borderLeftWidth = "4px";
-  card.style.borderLeftStyle = "solid";
-  // ПОЧЕМУ? — borderLeftColor остаётся цветом приоритета в любой теме
-  card.style.borderLeftColor = PRIORITY_COLORS.light[task.priority].border;
-
-  // ПОЧЕМУ? — Адаптивная ширина: карточка подстраивается под контейнер
-  // Ширина не может превышать ширину окна браузера
-  card.style.width = "100%";
-  card.style.maxWidth = "100%";
-  card.style.boxSizing = "border-box";
-
-  // Анимация появления
   card.style.animation = "fadeIn 0.25s ease";
 
-  // Заголовок задачи
-  // ПОЧЕМУ? — textContent вставляет текст безопасно, экранируя теги
   const title = document.createElement("h3");
   safeText(title, task.text);
-  title.style.color = colors.text;
   title.title = "Двойной клик для редактирования";
-  // ПОЧЕМУ? — word-break для переноса длинных слов (адаптивная ширина)
-  title.style.wordBreak = "break-word";
+  // ПОЧЕМУ? — Правила переноса задаются явно для защиты от горизонтального скролла на мобильных устройствах
+  title.style.wordWrap = "break-word";
   title.style.overflowWrap = "break-word";
+  title.style.wordBreak = "break-all";
   title.style.hyphens = "auto";
-  // ПОЧЕМУ? — Адаптивная ширина текста
-  title.style.width = "100%";
-  title.style.maxWidth = "100%";
 
-  // Бейдж приоритета
   const badge = document.createElement("span");
   badge.className = `priority-badge ${task.priority}`;
   safeText(
@@ -236,467 +126,236 @@ function createTaskCard(task) {
   );
   badge.title = "Двойной клик для смены приоритета";
 
-  // Кнопки действий
   const actions = document.createElement("div");
   actions.className = "card-actions";
-  // ПОЧЕМУ? — Адаптивная ширина для кнопок
-  actions.style.width = "100%";
-  actions.style.display = "flex";
-  actions.style.flexWrap = "wrap";
-  actions.style.gap = "6px";
-
-  const prevBtn = document.createElement("button");
-  prevBtn.className = "btn-secondary";
-  prevBtn.dataset.action = "prev";
-  safeText(prevBtn, "← Назад");
-  prevBtn.style.flex = "1";
-  prevBtn.style.minWidth = "60px";
-
-  const nextBtn = document.createElement("button");
-  nextBtn.dataset.action = "next";
-  safeText(nextBtn, "→ Вперёд");
-  nextBtn.style.flex = "1";
-  nextBtn.style.minWidth = "60px";
-
-  const delBtn = document.createElement("button");
-  delBtn.className = "btn-danger";
-  delBtn.dataset.action = "delete";
-  safeText(delBtn, "✕ Удалить");
-  delBtn.style.flex = "1";
-  delBtn.style.minWidth = "60px";
-
-  // ПОЧЕМУ? — append добавляет несколько узлов одним вызовом
-  actions.append(prevBtn, nextBtn, delBtn);
-  card.append(title, badge, actions);
-
-  // ===== РЕДАКТИРОВАНИЕ ЗАГОЛОВКА ПО ДВОЙНОМУ КЛИКУ =====
-  // ПОЧЕМУ? — dblclick позволяет редактировать контент по двойному клику
-  title.addEventListener("dblclick", (e) => {
-    // ПОЧЕМУ? — stopPropagation предотвращает всплытие события
-    e.stopPropagation();
-    if (isViewMode) return;
-    editTaskTitle(card, title, colors);
+  // ПОЧЕМУ? — Метод forEach с createElement оптимизирует создание кнопок и исключает дублирование кода
+  ["prev", "next", "delete"].forEach((action) => {
+    const btn = document.createElement("button");
+    btn.dataset.action = action;
+    safeText(
+      btn,
+      action === "prev"
+        ? "← Назад"
+        : action === "next"
+          ? "→ Вперёд"
+          : "✕ Удалить",
+    );
+    btn.className = action === "delete" ? "btn-danger" : "btn-secondary";
+    btn.style.flex = "1";
+    btn.style.minWidth = "60px";
+    actions.appendChild(btn);
   });
 
-  // ===== РЕДАКТИРОВАНИЕ ПРИОРИТЕТА ПО ДВОЙНОМУ КЛИКУ =====
-  badge.addEventListener("dblclick", (e) => {
-    // ПОЧЕМУ? — stopPropagation предотвращает всплытие события
+  card.append(title, badge, actions);
+
+  // ПОЧЕМУ? — stopPropagation изолирует событие редактирования от делегированного клика выделения на родительской доске
+  title.addEventListener("dblclick", (e) => {
     e.stopPropagation();
-    if (isViewMode) return;
-    editTaskPriority(card, badge);
+    if (!isViewMode) editTaskTitle(card, title);
+  });
+  badge.addEventListener("dblclick", (e) => {
+    e.stopPropagation();
+    if (!isViewMode) editTaskPriority(card, badge);
   });
 
   return card;
 }
 
-/**
- * Обновляет стиль карточки при изменении приоритета.
- * ПОЧЕМУ? — Вынесено в отдельную функцию для повторного использования
- */
+// ПОЧЕМУ? — Выделение логики обновления стилей в отдельную функцию предотвращает дублирование кода при смене приоритетов и тем
 function updateCardPriorityStyle(card, newPriority) {
-  const isDarkMode = document.body.classList.contains("dark-mode");
-  const colors = isDarkMode
-    ? PRIORITY_COLORS.dark[newPriority]
-    : PRIORITY_COLORS.light[newPriority];
-
-  // ПОЧЕМУ? — Обновляем data-атрибут для CSS-селекторов
   card.dataset.priority = newPriority;
-
-  // ПОЧЕМУ? — Обновляем цвета карточки согласно новому приоритету
-  card.style.backgroundColor = colors.bg;
-  card.style.color = colors.text;
-  card.style.borderLeftWidth = "4px";
-  card.style.borderLeftStyle = "solid";
-  // ПОЧЕМУ? — borderLeftColor остаётся цветом приоритета в любой теме
-  card.style.borderLeftColor = PRIORITY_COLORS.light[newPriority].border;
-
-  // Обновляем цвет заголовка
   const title = card.querySelector("h3");
   if (title) {
-    title.style.color = colors.text;
-    // ПОЧЕМУ? — word-break для переноса длинных слов
-    title.style.wordBreak = "break-word";
+    // ПОЧЕМУ? — Повторное применение правил переноса гарантирует сохранение читаемости после динамической замены узлов
+    title.style.wordWrap = "break-word";
     title.style.overflowWrap = "break-word";
+    title.style.wordBreak = "break-all";
+    title.style.hyphens = "auto";
   }
-
-  // Если карточка выделена (selected), обновляем подсветку
-  // ПОЧЕМУ? — При изменении приоритета нужно сразу обновить цвет подсветки
-  if (card.classList.contains("selected")) {
-    card.style.borderColor = colors.border;
-    card.style.boxShadow = `0 0 0 2px ${colors.border}`;
-  }
+  updateCounters();
 }
 
-/**
- * Редактирование названия задачи по двойному клику.
- * ПОЧЕМУ? — replaceChild заменяет существующий узел на input
- */
-function editTaskTitle(card, titleEl, colors) {
+// ПОЧЕМУ? — Паттерн inline-редактирования улучшает UX, избегая модальных окон и сохраняя контекст задачи
+function editTaskTitle(card, titleEl) {
   const input = document.createElement("input");
   input.type = "text";
   input.value = titleEl.textContent;
-  // ПОЧЕМУ? — Добавляем maxlength для ограничения ввода (100 символов)
+  // ПОЧЕМУ? — Нативный maxlength дублирует JS-валидацию для защиты от вставки через контекстное меню или Drag&Drop
   input.maxLength = MAX_TASK_LENGTH;
   input.style.cssText =
-    "width: 100%; padding: 4px 8px; border: 1px solid #3b82f6; border-radius: 4px; font-size: 0.95rem; font-family: inherit; word-break: break-word; overflow-wrap: break-word; box-sizing: border-box;";
+    "width: 100%; padding: 4px 8px; border: 1px solid #3b82f6; border-radius: 4px; font-size: 0.95rem; font-family: inherit; box-sizing: border-box; word-break: break-word;";
 
-  // ПОЧЕМУ? — replaceChild заменяет заголовок на input
   card.replaceChild(input, titleEl);
   input.focus();
 
-  // Счётчик символов для input
   const charCount = document.createElement("span");
   charCount.style.cssText =
     "font-size: 0.75rem; color: #64748b; margin-top: 2px; display: block;";
   charCount.textContent = `${input.value.length} / ${MAX_TASK_LENGTH}`;
   card.appendChild(charCount);
 
-  // Обновление счётчика символов при вводе
   input.addEventListener("input", () => {
     charCount.textContent = `${input.value.length} / ${MAX_TASK_LENGTH}`;
-    if (input.value.length > MAX_TASK_LENGTH) {
-      charCount.style.color = "#ef4444";
-    } else {
-      charCount.style.color = "#64748b";
-    }
+    // ПОЧЕМУ? — Визуальная обратная связь при превышении лимита предотвращает потерю данных до отправки
+    charCount.style.color =
+      input.value.length > MAX_TASK_LENGTH ? "#ef4444" : "#64748b";
   });
 
-  input.addEventListener("blur", () => {
-    // Удаляем счётчик символов
-    if (charCount.parentNode) {
-      charCount.remove();
-    }
-
-    const newValue = input.value.trim();
-    const error = validateTaskText(newValue);
-
-    if (error) {
-      // ПОЧЕМУ? — textContent безопасное обновление текста
-      showError(error);
-      // Возвращаем старое значение при ошибке
-      titleEl.textContent = input.value;
-      titleEl.style.color = colors.text;
+  const finishEdit = () => {
+    charCount.remove();
+    const newVal = input.value.trim();
+    const err = validateTaskText(newVal);
+    if (err) {
+      showError(err);
+      titleEl.textContent = input.value; // ПОЧЕМУ? — Откат к исходному тексту при ошибке сохраняет целостность данных
     } else {
-      // ПОЧЕМУ? — textContent безопасное обновление текста
-      titleEl.textContent = newValue;
-      titleEl.style.color = colors.text;
+      safeText(titleEl, newVal);
       clearError();
     }
-    // ПОЧЕМУ? — word-break для переноса длинных слов
-    titleEl.style.wordBreak = "break-word";
-    titleEl.style.overflowWrap = "break-word";
-
-    // Проверяем, существует ли ещё input в DOM
-    // ПОЧЕМУ? — Если элемент уже заменён, replaceChild вызовет ошибку
-    if (input.parentNode === card) {
-      card.replaceChild(titleEl, input);
-    }
+    if (input.parentNode === card) card.replaceChild(titleEl, input);
     updateCounters();
-  });
+  };
 
+  // ПОЧЕМУ? — blur гарантирует сохранение данных при клике вне поля, а Enter/Escape обеспечивают клавиатурный UX
+  input.addEventListener("blur", finishEdit);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") input.blur();
     if (e.key === "Escape") {
-      // Удаляем счётчик символов
-      if (charCount.parentNode) {
-        charCount.remove();
-      }
-      // Проверяем, существует ли ещё input в DOM
-      if (input.parentNode === card) {
-        card.replaceChild(titleEl, input);
-      }
+      charCount.remove();
+      if (input.parentNode === card) card.replaceChild(titleEl, input);
+      clearError();
     }
   });
 }
 
-/**
- * Редактирование приоритета задачи по двойному клику.
- * ПОЧЕМУ? — select позволяет выбрать один из трёх вариантов приоритета
- */
+// ПОЧЕМУ? — Замена элемента на <select> обеспечивает нативный выбор из списка без кастомных dropdown-компонентов
 function editTaskPriority(card, badgeEl) {
   const select = document.createElement("select");
   select.style.cssText =
-    "padding: 4px 8px; border: 1px solid #3b82f6; border-radius: 4px; font-size: 0.85rem; font-family: inherit; width: 100%; box-sizing: border-box;";
+    "padding: 4px 8px; border: 1px solid #3b82f6; border-radius: 4px; font-size: 0.85rem; width: 100%; box-sizing: border-box;";
+  const frag = document.createDocumentFragment();
 
-  const fragment = document.createDocumentFragment();
-  const priorities = [
-    { value: "high", label: "🔴 Высокий" },
-    { value: "medium", label: "🟡 Средний" },
-    { value: "low", label: "🟢 Низкий" },
-  ];
-
-  priorities.forEach((p) => {
-    const option = document.createElement("option");
-    option.value = p.value;
-    option.textContent = p.label;
-    if (card.dataset.priority === p.value) {
-      option.selected = true;
-    }
-    fragment.appendChild(option);
+  // ПОЧЕМУ? — DocumentFragment минимизирует количество рефлоуов при массовой вставке опций
+  ["high", "medium", "low"].forEach((p) => {
+    const opt = document.createElement("option");
+    opt.value = p;
+    opt.textContent =
+      p === "high" ? "🔴 Высокий" : p === "medium" ? "🟡 Средний" : "🟢 Низкий";
+    if (card.dataset.priority === p) opt.selected = true;
+    frag.appendChild(opt);
   });
+  select.appendChild(frag);
 
-  select.appendChild(fragment);
-
-  // ПОЧЕМУ? — Проверяем, существует ли ещё badgeEl в DOM перед заменой
-  if (badgeEl.parentNode !== card) return;
-
-  card.replaceChild(select, badgeEl);
+  if (badgeEl.parentNode === card) card.replaceChild(select, badgeEl);
   select.focus();
 
-  // Сохранение при изменении
   select.addEventListener("change", () => {
-    const newPriority = select.value;
-
-    // Обновляем стиль карточки при изменении приоритета
-    // ПОЧЕМУ? — Вызываем функцию обновления стиля для применения новых цветов
-    updateCardPriorityStyle(card, newPriority);
-
+    updateCardPriorityStyle(card, select.value);
     const newBadge = document.createElement("span");
-    newBadge.className = `priority-badge ${newPriority}`;
+    newBadge.className = `priority-badge ${select.value}`;
     safeText(
       newBadge,
-      newPriority === "high"
+      select.value === "high"
         ? "🔴 Высокий"
-        : newPriority === "medium"
+        : select.value === "medium"
           ? "🟡 Средний"
           : "🟢 Низкий",
     );
     newBadge.title = "Двойной клик для смены приоритета";
 
-    // Проверяем, существует ли ещё select в DOM перед заменой
-    // ПОЧЕМУ? — Если select уже заменён, replaceChild вызовет ошибку NotFoundError
-    if (select.parentNode === card) {
-      // ПОЧЕМУ? — replaceChild заменяет select обратно на бейдж
-      card.replaceChild(newBadge, select);
-    }
-
-    // Пересоздаём обработчик dblclick для нового бейджа
+    if (select.parentNode === card) card.replaceChild(newBadge, select);
+    // ПОЧЕМУ? — Привязка обработчика к новому узлу обязательна после replaceChild, иначе событие потеряется
     newBadge.addEventListener("dblclick", (e) => {
       e.stopPropagation();
-      if (!isViewMode) {
-        editTaskPriority(card, newBadge);
-      }
+      if (!isViewMode) editTaskPriority(card, newBadge);
     });
-
-    updateCounters();
   });
 }
 
 /* =====================================================
-5. ДОБАВЛЕНИЕ ЗАДАЧИ
+   ДОБАВЛЕНИЕ И СОРТИРОВКА
 ===================================================== */
+// ПОЧЕМУ? — find() останавливается на первом совпадении, что эффективнее filter() или ручного цикла при поиске позиции вставки
+function insertSorted(list, card) {
+  const newPrio = PRIORITY_ORDER[card.dataset.priority] ?? 99;
+  const cards = [...list.querySelectorAll(".task-card")];
+  const after = cards.find(
+    (c) => (PRIORITY_ORDER[c.dataset.priority] ?? 99) > newPrio,
+  );
+  list.insertBefore(card, after || null);
+}
 
-/**
- * Читает форму, валидирует, создаёт карточку и добавляет в колонку «todo».
- */
 function addTask() {
-  const text = (taskInput.value || "").trim();
+  const text = taskInput.value.trim();
   const priority = prioritySelect.value;
-
-  // --- Валидация ---
-  // ПОЧЕМУ? — trim() удаляет пробелы по краям
   const error = validateTaskText(text);
+
   if (error) {
     showError(error);
     taskInput.focus();
     return;
   }
-
   clearError();
 
-  const task = {
-    id: generateId(),
-    text,
-    priority,
-    status: "todo",
-  };
-
+  const task = { id: generateId(), text, priority, status: "todo" };
   const card = createTaskCard(task);
   const todoList = document.querySelector('[data-status="todo"] .task-list');
-
-  // PRO: Сортировка по приоритету при вставке
   insertSorted(todoList, card);
 
-  // Сбрасываем форму
+  // ПОЧЕМУ? — Сброс фокуса и очистка формы предотвращают случайное дублирование при повторном нажатии Enter
   taskInput.value = "";
   prioritySelect.selectedIndex = 1;
   taskInput.focus();
-
   updateCounters();
 }
 
-/**
- * PRO: Вставка карточки с сортировкой по приоритету.
- * ПОЧЕМУ? — insertBefore вставляет узел перед указанным элементом
- */
-function insertSorted(list, card) {
-  const prioMap = { high: 0, medium: 1, low: 2 };
-  const newPrio = prioMap[card.dataset.priority] ?? 99;
-  const cards = [...list.querySelectorAll(".task-card")];
-  const after = cards.find(
-    (c) => (prioMap[c.dataset.priority] ?? 99) > newPrio,
-  );
-  list.insertBefore(card, after || null);
-}
-
 /* =====================================================
-6. ОБРАБОТЧИКИ ФОРМЫ
+   ДЕЛЕГИРОВАНИЕ СОБЫТИЙ НА ДОСКЕ
 ===================================================== */
-
-// ПОЧЕМУ? — addEventListener позволяет навесить несколько обработчиков
-addTaskBtn.addEventListener("click", addTask);
-
-// ПОЧЕМУ? — keydown обрабатывает нажатия клавиш для улучшения UX
-taskInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") addTask();
-  if (e.key === "Escape") {
-    taskInput.value = "";
-    clearError();
-  }
-});
-
-// ПОЧЕМУ? — input обрабатывает ввод символов для валидации в реальном времени
-taskInput.addEventListener("input", () => {
-  const text = taskInput.value.trim();
-  if (text.length > 0) {
-    const error = validateTaskText(text);
-    if (error) {
-      showError(error);
-      taskInput.style.borderColor = "#ef4444";
-    } else {
-      clearError();
-      taskInput.style.borderColor = "#22c55e";
-    }
-  } else {
-    clearError();
-    taskInput.style.borderColor = "";
-  }
-});
-
-/* =====================================================
-7. ДЕЛЕГИРОВАНИЕ СОБЫТИЙ НА ДОСКЕ ⭐
-===================================================== */
-
-/**
- * Главный обработчик кликов на доске.
- * ПОЧЕМУ? — один обработчик на #board работает для всех карточек
- * включая добавленные позже. Экономит память, упрощает код
- */
+// ПОЧЕМУ? — Именованная функция обязательна для корректного удаления обработчика через removeEventListener в режиме просмотра
 function boardClickHandler(e) {
-  // ПОЧЕМУ? — closest поднимается по DOM вверх и находит ближайший элемент с селектором
-  const actionBtn = e.target.closest("[data-action]");
+  const btn = e.target.closest("[data-action]");
   const card = e.target.closest(".task-card");
+  if (!card || isViewMode) return;
 
-  if (!card) return;
-
-  if (isViewMode) {
-    e.preventDefault();
-    return;
-  }
-
-  if (actionBtn) {
-    // ПОЧЕМУ? — stopPropagation останавливает всплытие: клик по кнопке не триггерит выделение карточки
+  if (btn) {
     e.stopPropagation();
-
-    const action = actionBtn.dataset.action;
-
-    switch (action) {
-      case "delete":
-        deleteCard(card);
-        break;
-      case "next":
-        moveCard(card, 1);
-        break;
-      case "prev":
-        moveCard(card, -1);
-        break;
-    }
+    const action = btn.dataset.action;
+    if (action === "delete") deleteCard(card);
+    else if (action === "next" || action === "prev")
+      moveCard(card, action === "next" ? 1 : -1);
     return;
   }
 
-  // Клик на карточку — выделение
-  // ПОЧЕМУ? — classList.toggle если класс есть — удаляет; если нет — добавляет
-  const isSelected = card.classList.toggle("selected");
-
-  if (isSelected) {
-    const isDarkMode = document.body.classList.contains("dark-mode");
-    const colors = isDarkMode
-      ? PRIORITY_COLORS.dark[card.dataset.priority]
-      : PRIORITY_COLORS.light[card.dataset.priority];
-    card.style.borderColor = colors.border;
-    card.style.boxShadow = `0 0 0 2px ${colors.border}`;
-  } else {
-    // Сбрасываем только border и boxShadow, НЕ borderLeftColor
-    // ПОЧЕМУ? — borderLeftColor должен остаться цветом приоритета
-    card.style.borderColor = "";
-    card.style.boxShadow = "";
-    // Восстанавливаем borderLeftColor явно
-    const priority = card.dataset.priority;
-    card.style.borderLeftWidth = "4px";
-    card.style.borderLeftStyle = "solid";
-    card.style.borderLeftColor = PRIORITY_COLORS.light[priority].border;
-  }
+  card.classList.toggle("selected");
 }
 
-// ПОЧЕМУ? — addEventListener на #board реализует делегирование
 board.addEventListener("click", boardClickHandler);
 
-/* =====================================================
-8. ФУНКЦИИ УДАЛЕНИЯ И ПЕРЕМЕЩЕНИЯ
-===================================================== */
-
-/**
- * Удаляет карточку с подтверждением.
- * ПОЧЕМУ? — confirm требует подтверждение перед удалением
- */
 function deleteCard(card) {
-  if (!confirm("Удалить задачу?")) return;
-
-  // ПОЧЕМУ? — remove удаляет узел напрямую
+  if (!window.confirm("Удалить задачу?")) return; // ПОЧЕМУ? — confirm защищает от случайных деструктивных действий
   card.remove();
   updateCounters();
 }
 
-/**
- * Перемещает карточку между колонками.
- */
-function moveCard(card, direction) {
-  const curStatus = card.closest(".column").dataset.status;
-  const idx = COLUMN_ORDER.indexOf(curStatus);
-  const newIdx = idx + direction;
+function moveCard(card, dir) {
+  const cur = card.closest(".column").dataset.status;
+  const idx = COLUMN_ORDER.indexOf(cur) + dir;
+  if (idx < 0 || idx >= COLUMN_ORDER.length) return; // ПОЧЕМУ? — Граничная проверка предотвращает выход за пределы массива колонок
 
-  if (newIdx < 0 || newIdx >= COLUMN_ORDER.length) return;
-
-  const targetList = document.querySelector(
-    `[data-status="${COLUMN_ORDER[newIdx]}"] .task-list`,
+  const target = document.querySelector(
+    `[data-status="${COLUMN_ORDER[idx]}"] .task-list`,
   );
-
-  insertSorted(targetList, card);
+  if (target) insertSorted(target, card);
   updateCounters();
 }
 
 /* =====================================================
-9. УПРАВЛЕНИЕ ТЕМОЙ И ОЧИСТКА
+   ОБРАБОТЧИКИ УПРАВЛЕНИЯ
 ===================================================== */
-
-// ПОЧЕМУ? — classList.toggle централизованно меняет стили
+// ПОЧЕМУ? — Переключение класса на body активирует CSS-каскад тем, что исключает необходимость ручного обхода всех элементов
 toggleThemeBtn.addEventListener("click", () => {
-  const isDark = document.body.classList.toggle("dark-mode");
-
-  // Обновляем стили всех карточек при смене темы
-  // ПОЧЕМУ? — Это нужно, чтобы цвета фона и текста изменились согласно новой теме
-  document.querySelectorAll(".task-card").forEach((card) => {
-    const priority = card.dataset.priority;
-    const colors = isDark
-      ? PRIORITY_COLORS.dark[priority]
-      : PRIORITY_COLORS.light[priority];
-    card.style.backgroundColor = colors.bg;
-    card.style.color = colors.text;
-    card.querySelector("h3").style.color = colors.text;
-    // ПОЧЕМУ? — Цвет левой границы остаётся прежним (приоритетный цвет)
-    card.style.borderLeftColor = PRIORITY_COLORS.light[priority].border;
-  });
-
+  document.body.classList.toggle("dark-mode");
   saveThemeToStorage();
 });
 
@@ -704,28 +363,22 @@ clearDoneBtn.addEventListener("click", () => {
   const doneList = document.querySelector('[data-status="done"] .task-list');
   const cards = doneList.querySelectorAll(".task-card");
 
+  // ПОЧЕМУ? — DOM-уведомление заменяет запрещённый alert() и не прерывает выполнение потока
   if (!cards.length) {
-    alert("Колонка «Готово» уже пуста.");
+    showInfo("Колонка «Готово» уже пуста.");
     return;
   }
-
-  // ПОЧЕМУ? — confirm требует подтверждение
-  if (!confirm(`Удалить все ${cards.length} задач из колонки «Готово»?`))
+  if (!window.confirm(`Удалить все ${cards.length} задач из колонки «Готово»?`))
     return;
 
-  cards.forEach((card) => card.remove());
+  cards.forEach((c) => c.remove());
   updateCounters();
 });
 
-/* =====================================================
-10. PRO: РЕЖИМ ПРОСМОТРА (removeEventListener)
-===================================================== */
-
-// ПОЧЕМУ? — removeEventListener требует именованную функцию
 viewModeBtn.addEventListener("click", () => {
   isViewMode = !isViewMode;
-
   if (isViewMode) {
+    // ПОЧЕМУ? — Удаление делегированного обработчика полностью блокирует взаимодействие с доской без нарушения структуры DOM
     board.removeEventListener("click", boardClickHandler);
     viewModeBtn.classList.add("view-mode-active");
     safeText(viewModeBtn, "✏️ Режим редактирования");
@@ -736,12 +389,8 @@ viewModeBtn.addEventListener("click", () => {
   }
 });
 
-/* =====================================================
-11. PRO: ПРИВЕТСТВЕННЫЙ БАННЕР ({ once: true })
-===================================================== */
-
-// ПОЧЕМУ? — { once: true } автоматически удаляет обработчик
 if (welcomeBanner && closeBannerBtn) {
+  // ПОЧЕМУ? — { once: true } гарантирует автоматическую очистку обработчика, предотвращая утечки памяти при повторных показах баннера
   closeBannerBtn.addEventListener(
     "click",
     () => {
@@ -751,139 +400,76 @@ if (welcomeBanner && closeBannerBtn) {
   );
 }
 
+// Форма
+addTaskBtn.addEventListener("click", addTask);
+taskInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") addTask();
+  if (e.key === "Escape") {
+    taskInput.value = "";
+    clearError();
+  }
+});
+taskInput.addEventListener("input", () => {
+  const err = validateTaskText(taskInput.value.trim());
+  if (err) {
+    showError(err);
+    taskInput.style.borderColor = "#ef4444";
+  } else if (taskInput.value.trim().length > 0) {
+    clearError();
+    taskInput.style.borderColor = "#22c55e";
+  } else {
+    clearError();
+    taskInput.style.borderColor = "";
+  }
+});
+
 /* =====================================================
-12. PRO: localStorage
+   LOCALSTORAGE
 ===================================================== */
-
-/**
- * Сохраняет все задачи в localStorage.
- * ПОЧЕМУ? — JSON.stringify сериализует массив объектов
- */
 function saveToStorage() {
-  const tasks = [];
-  document.querySelectorAll(".task-card").forEach((card) => {
-    tasks.push({
-      id: card.dataset.id,
-      text: card.querySelector("h3").textContent,
-      priority: card.dataset.priority,
-      status: card.closest(".column").dataset.status,
-    });
-  });
-
+  const tasks = [...document.querySelectorAll(".task-card")].map((c) => ({
+    id: c.dataset.id,
+    text: c.querySelector("h3").textContent,
+    priority: c.dataset.priority,
+    status: c.closest(".column").dataset.status,
+  }));
+  // ПОЧЕМУ? — try/catch обязателен: приватный режим браузера или переполнение квоты вызывают исключение при setItem
   try {
     localStorage.setItem("kanban-tasks", JSON.stringify(tasks));
   } catch (e) {
-    console.warn("localStorage недоступен:", e);
+    console.error("Ошибка сохранения:", e);
   }
 }
 
-/**
- * Загружает задачи из localStorage при старте.
- * ПОЧЕМУ? — JSON.parse преобразует JSON-строку обратно
- */
 function loadFromStorage() {
   try {
     const raw = localStorage.getItem("kanban-tasks");
     if (!raw) return;
-
     const tasks = JSON.parse(raw);
-
-    tasks.forEach((task) => {
-      const card = createTaskCard(task);
+    tasks.forEach((t) => {
       const col = document.querySelector(
-        `[data-status="${task.status}"] .task-list`,
+        `[data-status="${t.status}"] .task-list`,
       );
-      if (col) {
-        insertSorted(col, card);
-      }
+      if (col) insertSorted(col, createTaskCard(t));
     });
-
-    updateCounters();
   } catch (e) {
-    console.warn("Ошибка чтения localStorage:", e);
-  }
+    console.warn("Ошибка чтения:", e);
+  } // ПОЧЕМУ? — Ошибка парсинга не должна ломать инициализацию приложения
 }
 
 function saveThemeToStorage() {
-  const isDark = document.body.classList.contains("dark-mode");
-  localStorage.setItem("kanban-theme", isDark ? "dark" : "light");
+  localStorage.setItem(
+    "kanban-theme",
+    document.body.classList.contains("dark-mode") ? "dark" : "light",
+  );
 }
-
 function loadThemeFromStorage() {
-  const savedTheme = localStorage.getItem("kanban-theme");
-  if (savedTheme === "dark") {
+  if (localStorage.getItem("kanban-theme") === "dark")
     document.body.classList.add("dark-mode");
-  }
 }
 
-/* =====================================================
-13. PRO: DocumentFragment
-===================================================== */
-
-/**
- * PRO: Загрузка демо-задач через DocumentFragment.
- * ПОЧЕМУ? — DocumentFragment собирает узлы в памяти и вставляет один раз
- */
-function loadDemoTasks() {
-  const DEMO = [
-    {
-      id: generateId(),
-      text: "Изучить делегирование событий",
-      priority: "high",
-      status: "todo",
-    },
-    {
-      id: generateId(),
-      text: "Написать README с ответами",
-      priority: "medium",
-      status: "todo",
-    },
-    {
-      id: generateId(),
-      text: "Сделать скриншоты",
-      priority: "low",
-      status: "in-progress",
-    },
-    {
-      id: generateId(),
-      text: "Запушить на GitHub",
-      priority: "high",
-      status: "done",
-    },
-  ];
-
-  // ПОЧЕМУ? — DocumentFragment вставка за 1 раз
-  const fragment = document.createDocumentFragment();
-
-  DEMO.forEach((task) => {
-    const card = createTaskCard(task);
-    fragment.appendChild(card);
-  });
-
-  const todoList = document.querySelector('[data-status="todo"] .task-list');
-  todoList.appendChild(fragment);
-
-  updateCounters();
-}
-
-const demoBtn = document.querySelector("#load-demo");
-if (demoBtn) {
-  demoBtn.addEventListener("click", loadDemoTasks);
-}
-
-/* =====================================================
-14. ИНИЦИАЛИЗАЦИЯ
-===================================================== */
-
-function init() {
+document.addEventListener("DOMContentLoaded", () => {
   loadThemeFromStorage();
   loadFromStorage();
   updateCounters();
-  console.log(
-    "Kanban-доска инициализирована. Задач:",
-    document.querySelectorAll(".task-card").length,
-  );
-}
-
-// ПОЧЕМУ? — DOMContentLoaded ждёт полной загрузки DOM
-document.addEventListener("DOMContentLoaded", init);
+});

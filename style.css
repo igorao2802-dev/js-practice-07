@@ -1,54 +1,54 @@
-/* ====
-   Практическая работа №7 — События в JS
-   Starter Kit: style_07.css
-   ==== */
-
-/* ---- СБРОС И БАЗОВЫЕ СТИЛИ ---- */
-*, *::before, *::after {
+/* ==== СБРОС И БАЗА ==== */
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
-
 body {
   font-family: Arial, sans-serif;
   margin: 0;
   padding: 20px;
   background: #f0f4f8;
   color: #1e293b;
-  transition: background 0.3s ease, color 0.3s ease;
+  transition:
+    background 0.3s ease,
+    color 0.3s ease;
 }
 
-/* ---- ТЁМНАЯ ТЕМА (добавляется через JS: body.classList.toggle('dark-mode')) ---- */
+/* Утилита скрытия */
+.hidden {
+  display: none !important;
+}
+
+/* ПОЧЕМУ? — Правила переноса вынесены в CSS для разделения логики и отображения */
+.task-card h3,
+.task-card input[type="text"] {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-all;
+  hyphens: auto;
+}
+
+/* ---- ТЁМНАЯ ТЕМА ---- */
 body.dark-mode {
   background: #0f172a;
   color: #e2e8f0;
 }
-
 body.dark-mode .card {
   background: #1e293b;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
-
 body.dark-mode input,
 body.dark-mode select {
   background: #334155;
   color: #e2e8f0;
   border-color: #475569;
 }
-
 body.dark-mode .column {
   background: #1e293b;
 }
 
-body.dark-mode .task-card {
-  background: #273549;
-  border-color: #334155;
-}
-
-body.dark-mode .task-card h3 {
-  color: #e2e8f0;
-}
-
-/* ---- ПРИВЕТСТВЕННЫЙ БАННЕР (PRO: закрыть через { once: true }) ---- */
+/* ---- БАННЕР ---- */
 .welcome-banner {
   background: #dbeafe;
   border: 1px solid #93c5fd;
@@ -61,49 +61,39 @@ body.dark-mode .task-card h3 {
   gap: 12px;
   flex-wrap: wrap;
 }
-
 body.dark-mode .welcome-banner {
   background: #1e3a5f;
   border-color: #3b82f6;
 }
-
 .welcome-banner p {
   margin: 0;
   font-size: 0.95rem;
   color: #1e40af;
 }
-
 body.dark-mode .welcome-banner p {
   color: #93c5fd;
 }
-
 .welcome-banner button {
   padding: 4px 12px;
   font-size: 0.85rem;
-  background: #3b82f6;
 }
 
-/* ---- ШАПКА ---- */
+/* ---- ШАПКА И СЕКЦИИ ---- */
 header {
   margin-bottom: 24px;
 }
-
 header h1 {
   margin: 0 0 4px;
   font-size: 1.6rem;
 }
-
 .subtitle {
   margin: 0;
   color: #64748b;
   font-size: 0.95rem;
 }
-
 body.dark-mode .subtitle {
   color: #94a3b8;
 }
-
-/* ---- СЕКЦИИ-КАРТОЧКИ ---- */
 .card {
   background: #ffffff;
   padding: 20px 24px;
@@ -111,13 +101,11 @@ body.dark-mode .subtitle {
   border-radius: 10px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
-
 .card h2 {
   margin: 0 0 14px;
   font-size: 1.1rem;
   color: #1e40af;
 }
-
 body.dark-mode .card h2 {
   color: #93c5fd;
 }
@@ -130,13 +118,11 @@ body.dark-mode .card h2 {
   margin-bottom: 12px;
   flex-wrap: wrap;
 }
-
 .form-group label {
   min-width: 130px;
   font-weight: bold;
   font-size: 0.9rem;
 }
-
 input[type="text"] {
   flex: 1;
   min-width: 200px;
@@ -146,12 +132,10 @@ input[type="text"] {
   font-size: 0.95rem;
   transition: border-color 0.2s;
 }
-
 input[type="text"]:focus {
   outline: none;
   border-color: #3b82f6;
 }
-
 select {
   padding: 8px 10px;
   border: 1px solid #cbd5e1;
@@ -169,14 +153,11 @@ select {
   flex-wrap: wrap;
   gap: 12px;
 }
-
-/* ---- КНОПКИ ---- */
 .buttons {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
 }
-
 button {
   padding: 8px 16px;
   border: none;
@@ -185,91 +166,70 @@ button {
   border-radius: 6px;
   cursor: pointer;
   font-size: 0.9rem;
-  transition: background-color 0.2s ease, opacity 0.2s;
+  transition: 0.2s;
 }
-
 button:hover {
   background-color: #2563eb;
 }
-
 button.btn-secondary {
   background-color: #64748b;
 }
-
 button.btn-secondary:hover {
   background-color: #475569;
 }
-
 button.btn-danger {
   background-color: #ef4444;
 }
-
 button.btn-danger:hover {
   background-color: #dc2626;
 }
-
-/* Активный режим просмотра */
 button.view-mode-active {
   background-color: #f59e0b;
 }
-
 button.view-mode-active:hover {
   background-color: #d97706;
 }
 
-/* ---- СООБЩЕНИЕ ВАЛИДАЦИИ ---- */
+/* ---- ВАЛИДАЦИЯ И СЧЁТЧИКИ ---- */
 .validation-msg {
   margin: 8px 0 0;
   font-size: 0.88rem;
-  color: #ef4444;
   min-height: 1.2em;
 }
-
-/* ---- СЧЁТЧИК ---- */
 .counter-line {
   margin: 0;
   font-size: 0.9rem;
   color: #475569;
 }
-
 #task-count {
   font-weight: bold;
   color: #1e40af;
 }
-
 body.dark-mode #task-count {
   color: #93c5fd;
 }
 
-/* ---- KANBAN-ДОСКА ---- */
-#board-section {
-  margin-bottom: 20px;
-}
-
+/* ---- ДОСКА И КОЛОНКИ ---- */
 #board {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
 }
-
 @media (max-width: 700px) {
   #board {
     grid-template-columns: 1fr;
   }
 }
-
-/* ---- КОЛОНКИ ---- */
 .column {
   background: #ffffff;
   border-radius: 10px;
   padding: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   min-height: 200px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
-
 .column-title {
   margin: 0;
   font-size: 1rem;
@@ -279,11 +239,9 @@ body.dark-mode #task-count {
   justify-content: space-between;
   gap: 8px;
 }
-
 body.dark-mode .column-title {
   color: #93c5fd;
 }
-
 .column-count {
   background: #dbeafe;
   color: #1e40af;
@@ -294,12 +252,10 @@ body.dark-mode .column-title {
   min-width: 24px;
   text-align: center;
 }
-
 body.dark-mode .column-count {
   background: #1e3a5f;
   color: #93c5fd;
 }
-
 .task-list {
   display: flex;
   flex-direction: column;
@@ -307,9 +263,8 @@ body.dark-mode .column-count {
   flex: 1;
 }
 
-/* ---- КАРТОЧКИ ЗАДАЧ (создаются через JS) ---- */
+/* ---- КАРТОЧКИ ---- */
 .task-card {
-  background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-left: 4px solid #3b82f6;
   border-radius: 8px;
@@ -318,62 +273,66 @@ body.dark-mode .column-count {
   flex-direction: column;
   gap: 8px;
   cursor: pointer;
-  transition: box-shadow 0.2s, border-color 0.2s, transform 0.15s;
+  transition:
+    box-shadow 0.2s,
+    border-color 0.2s,
+    transform 0.15s;
   animation: fadeIn 0.25s ease;
 }
-
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
-
 .task-card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
-
-/* Выделение карточки при клике (добавляется через JS) */
 .task-card.selected {
   border-color: #f59e0b;
-  background: #fffbeb;
   box-shadow: 0 0 0 2px #fcd34d;
 }
 
-body.dark-mode .task-card.selected {
-  background: #2d2010;
-  border-color: #f59e0b;
-}
-
-/* Приоритеты (добавляются через JS через data-priority) */
+/* ПОЧЕМУ? — Цвета приоритетов и темы управляются через CSS, JS только меняет data-атрибуты */
 .task-card[data-priority="high"] {
   border-left-color: #ef4444;
+  background: #fef2f2;
+  color: #1e293b;
 }
-
 .task-card[data-priority="medium"] {
   border-left-color: #f59e0b;
+  background: #fffbeb;
+  color: #1e293b;
 }
-
 .task-card[data-priority="low"] {
   border-left-color: #22c55e;
+  background: #f0fdf4;
+  color: #1e293b;
 }
 
-/* PRO: класс для высокого приоритета */
-.task-card.priority-high {
-  border-left-color: #ef4444;
-  background: #fff5f5;
+body.dark-mode .task-card[data-priority="high"] {
+  background: #450a0a;
+  color: #fecaca;
 }
-
-body.dark-mode .task-card.priority-high {
-  background: #2d1010;
+body.dark-mode .task-card[data-priority="medium"] {
+  background: #422006;
+  color: #fef08a;
+}
+body.dark-mode .task-card[data-priority="low"] {
+  background: #052e16;
+  color: #bbf7d0;
 }
 
 .task-card h3 {
   margin: 0;
   font-size: 0.95rem;
-  color: #1e293b;
   line-height: 1.4;
 }
-
-.task-card .priority-badge {
+.priority-badge {
   display: inline-block;
   font-size: 0.72rem;
   padding: 2px 7px;
@@ -381,17 +340,24 @@ body.dark-mode .task-card.priority-high {
   font-weight: bold;
   width: fit-content;
 }
-
-.priority-badge.low     { background: #dcfce7; color: #166534; }
-.priority-badge.medium  { background: #fef9c3; color: #854d0e; }
-.priority-badge.high    { background: #fee2e2; color: #991b1b; }
+.priority-badge.low {
+  background: #dcfce7;
+  color: #166534;
+}
+.priority-badge.medium {
+  background: #fef9c3;
+  color: #854d0e;
+}
+.priority-badge.high {
+  background: #fee2e2;
+  color: #991b1b;
+}
 
 .task-card .card-actions {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
 }
-
 .task-card .card-actions button {
   flex: 1;
   padding: 5px 8px;
@@ -399,35 +365,8 @@ body.dark-mode .task-card.priority-high {
   min-width: 60px;
 }
 
-/* ---- СЕКЦИЯ ПОДСКАЗОК ---- */
-.hints-section ul {
-  margin: 0;
-  padding-left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.hints-section li {
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-
-code {
-  background: #f1f5f9;
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  color: #0f172a;
-  font-family: 'Courier New', monospace;
-}
-
-body.dark-mode code {
-  background: #334155;
-  color: #e2e8f0;
-}
-
-/* ---- ЧЕК-ЛИСТ ---- */
+/* ---- ПОДСКАЗКИ И ЧЕК-ЛИСТ ---- */
+.hints-section ul,
 #checklist-section ol {
   margin: 0;
   padding-left: 20px;
@@ -435,8 +374,20 @@ body.dark-mode code {
   flex-direction: column;
   gap: 6px;
 }
-
+.hints-section li,
 #checklist-section li {
   font-size: 0.9rem;
   line-height: 1.5;
+}
+code {
+  background: #f1f5f9;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-family: monospace;
+  color: #0f172a;
+}
+body.dark-mode code {
+  background: #334155;
+  color: #e2e8f0;
 }
